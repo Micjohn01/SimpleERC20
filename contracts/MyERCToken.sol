@@ -1,34 +1,63 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.27;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
 
-// Uncomment this line to use console.log
-// import "hardhat/console.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-contract Lock {
-    uint public unlockTime;
-    address payable public owner;
+contract MyERCToken is ERC20 {
+    address public owner;
+    uint8 private _decimals = 18;
 
-    event Withdrawal(uint amount, uint when);
 
-    constructor(uint _unlockTime) payable {
-        require(
-            block.timestamp < _unlockTime,
-            "Unlock time should be in the future"
-        );
-
-        unlockTime = _unlockTime;
-        owner = payable(msg.sender);
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can mint tokens");
+        _;
     }
 
-    function withdraw() public {
-        // Uncomment this line, and the import of "hardhat/console.sol", to print a log in your terminal
-        // console.log("Unlock time is %o and block timestamp is %o", unlockTime, block.timestamp);
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {
+        owner = msg.sender;
+    }
 
-        require(block.timestamp >= unlockTime, "You can't withdraw yet");
-        require(msg.sender == owner, "You aren't the owner");
+    event TokensMinted(address indexed to, uint256 amount);
+    event TokensBurned(address indexed from, uint256 amount);
+    event TokensTransferred(address indexed from, address indexed to, uint256 amount);
 
-        emit Withdrawal(address(this).balance, block.timestamp);
+    
+    function mint(address to, uint256 amount) public onlyOwner {
+        require(to != address(0), "Cannot mint to zero address");
+        require(amount > 0, "Mint amount must be greater than zero");
+        _mint(to, amount);
+        emit TokensMinted(to, amount);
+    }
 
-        owner.transfer(address(this).balance);
+    
+    function burn(uint256 amount) public {
+        require(amount > 0, "You can't burn zero");
+        require(balanceOf(msg.sender) >= amount, "Insufficient balance for burn");
+        _burn(msg.sender, amount);
+        emit TokensBurned(msg.sender, amount);
+    }
+
+   
+    function transfer(address to, uint256 amount) public virtual override returns (bool) {
+        require(to != address(0), "Cannot transfer to zero address");
+        require(amount > 0, "Transfer must be greater than zero");
+        require(balanceOf(msg.sender) >= amount, "Insufficient balance for transfer");
+        
+        bool success = super.transfer(to, amount);
+        require(success, "Transfer failed");
+        emit TokensTransferred(msg.sender, to, amount);
+        return true;
+    }
+
+    function getBalance(address account) public view returns (uint256) {
+        return balanceOf(account);
+    }
+
+    function getTotalSupply() public view returns (uint256) {
+        return totalSupply();
+    }
+
+    function decimals() public view override returns (uint8) {
+        return _decimals;
     }
 }
